@@ -6,7 +6,6 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { getDashboard, saveResult, resetProgress } = require('./db');
-const tts = require('./tts');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,29 +41,21 @@ app.post('/api/reset', (req, res) => {
   res.json(resetProgress(user));
 });
 
-// 讯飞语音合成：带本地文件缓存。同一段文本只合成一次，存成 mp3，以后直接读本地文件
+// 语音朗读：只回本地已缓存的 mp3。没有缓存时返回 404，前端会自动回退到浏览器本地语音
 const ttsDir = path.join(__dirname, 'data', 'tts');
 if (!fs.existsSync(ttsDir)) fs.mkdirSync(ttsDir, { recursive: true });
 
-app.post('/api/tts', async (req, res) => {
-  try {
-    const text = ((req.body && req.body.text) || '').slice(0, 8000);
-    if (!text.trim()) return res.status(400).json({ error: '文本为空' });
-    const hash = crypto.createHash('md5').update(text).digest('hex');
-    const file = path.join(ttsDir, hash + '.mp3');
-    // 已合成过 → 直接读本地文件，不调用讯飞 API
-    if (fs.existsSync(file)) {
-      res.set('Content-Type', 'audio/mpeg');
-      return res.sendFile(file);
-    }
-    // 没合成过 → 调用讯飞，并存盘
-    const buf = await tts.generate(text);
-    fs.writeFileSync(file, buf);
+app.post('/api/tts', (req, res) => {
+  const text = ((req.body && req.body.text) || '').slice(0, 8000);
+  if (!text.trim()) return res.status(400).json({ error: '文本为空' });
+  const hash = crypto.createHash('md5').update(text).digest('hex');
+  const file = path.join(ttsDir, hash + '.mp3');
+  if (fs.existsSync(file)) {
     res.set('Content-Type', 'audio/mpeg');
-    res.send(buf);
-  } catch (e) {
-    res.status(500).json({ error: e.message || '语音合成失败' });
+    return res.sendFile(file);
   }
+  // 无缓存：返回 404，由前端回退浏览器内置语音朗读
+  res.status(404).json({ error: 'no_cache' });
 });
 
 // 健康检查

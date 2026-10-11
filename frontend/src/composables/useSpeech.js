@@ -1,4 +1,4 @@
-// 语音朗读：统一使用讯飞云端真人语音（聆小璇），后端合成 mp3 后播放
+// 语音朗读：优先播后端缓存的真人 mp3；没有缓存时回退浏览器内置语音
 import { ref, onUnmounted } from 'vue';
 
 export function useSpeech() {
@@ -10,13 +10,31 @@ export function useSpeech() {
       try { currentAudio.pause(); } catch (e) {}
       currentAudio = null;
     }
+    // 停止浏览器本地语音
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch (e) {}
+    }
     speakingId.value = null;
+  }
+
+  // 浏览器本地语音朗读（兜底）
+  function speakLocal(text, id) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      speakingId.value = null;
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    u.rate = 1;
+    u.onend = () => { if (speakingId.value === id) speakingId.value = null; };
+    u.onerror = () => { speakingId.value = null; };
+    window.speechSynthesis.speak(u);
   }
 
   function speak(text, id = 'default') {
     if (speakingId.value === id) { stop(); return; } // 再点一次 = 停止
     stop();
-    // 换行/段落 → 转成句号，强制 TTS 在这里停顿（讯飞不把换行当停顿）
+    // 换行/段落 → 转成句号，让朗读在这里停顿
     const clean = (text || '')
       .replace(/\r/g, '')
       .replace(/[ \t]+/g, ' ')
@@ -32,23 +50,20 @@ export function useSpeech() {
       body: JSON.stringify({ text: clean }),
     })
       .then(async (res) => {
-        if (!res.ok) {
-          let msg = '语音合成失败';
-          try { msg = (await res.json()).error || msg; } catch (e) {}
-          throw new Error(msg);
-        }
+        if (!res.ok) return null; // 无缓存/失败 → 走本地语音
         return res.blob();
       })
       .then((blob) => {
+        if (!blob) { speakLocal(clean, id); return; }
         const audio = new Audio(URL.createObjectURL(blob));
         currentAudio = audio;
         audio.onended = () => { if (speakingId.value === id) speakingId.value = null; currentAudio = null; };
         audio.onerror = () => { speakingId.value = null; currentAudio = null; };
         audio.play();
       })
-      .catch((e) => {
-        alert('语音播放失败：' + e.message + '（请确认服务已启动、网络正常）');
-        speakingId.value = null;
+      .catch(() => {
+        // 后端连不上等异常 → 直接本地语音
+        speakLocal(clean, id);
       });
   }
 
