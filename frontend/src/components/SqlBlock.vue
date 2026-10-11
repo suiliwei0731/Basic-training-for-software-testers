@@ -61,6 +61,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import initSqlJs from 'sql.js';
+import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 
 const props = defineProps(['block']);
 const emit = defineEmits(['complete']);
@@ -85,12 +86,15 @@ async function initDb() {
   try {
     if (!SQL) {
       SQL = await initSqlJs({
-        locateFile: (f) => `https://sql.js.org/dist/${f}`,
+        // 从本地打包的 wasm 加载，不依赖外网
+        locateFile: () => wasmUrl,
       });
     }
     db = new SQL.Database();
     if (props.block.seed) db.run(props.block.seed);
     output.value = null;
+  } catch (e) {
+    output.value = { error: '数据库初始化失败：' + (e && e.message ? e.message : e), tables: [] };
   } finally {
     loading.value = false;
   }
@@ -98,6 +102,7 @@ async function initDb() {
 
 function runQuery(query) {
   const result = { error: null, tables: [] };
+  if (!db) { result.error = '数据库还没准备好，请稍等片刻再运行（或刷新页面）。'; return result; }
   try {
     const res = db.exec(query);
     res.forEach((r) => result.tables.push({ columns: r.columns, values: r.values }));
