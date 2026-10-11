@@ -1,0 +1,15 @@
+{
+  "name": "test-quest-backend",
+  "version": "1.0.0",
+  "description": "软件测试学习闯关 - 后端服务（进度存档）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^18.0.7",
+    "express": "^4.21.0",
+    "ws": "^8.22.0"
+  }
+}

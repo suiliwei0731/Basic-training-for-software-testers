@@ -1,0 +1,22 @@
+# 依赖
+node_modules/
+**/node_modules/
+
+# 构建产物
+dist/
+**/dist/
+*.log
+
+# 环境变量与密钥（不要提交！）
+.env
+backend/.env
+
+# 数据库与语音缓存（本地数据，按需提交时取消注释）
+backend/data/progress.db
+backend/data/tts/
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
