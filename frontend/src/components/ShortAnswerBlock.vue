@@ -40,7 +40,14 @@ const done = ref(false);
 
 const keywords = computed(() => props.block.keywords || []);
 const total = computed(() => keywords.value.length);
-function hit(k) { return mine.value.includes(k); }
+// 归一化：去空白、全角转半角、全角数字转半角，避免"6 位"匹配不上"6位"这类误判
+function norm(s) {
+  return (s || '')
+    .replace(/\s+/g, '')
+    .replace(/[（）【】「」]/g, (c) => ({ '（': '(', '）': ')', '【': '[', '】': ']', '「': '[', '」': ']' }[c]))
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+}
+function hit(k) { return norm(mine.value).includes(norm(k)); }
 const covered = computed(() => keywords.value.filter(hit).length);
 // 有要点时覆盖 60% 算通过；没有要点时写了就算过
 const passed = computed(() =>
